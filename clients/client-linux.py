@@ -9,7 +9,6 @@
 SERVER = "127.0.0.1"
 USER = "s01"
 
-
 PASSWORD = "USER_DEFAULT_PASSWORD"
 PORT = 35601
 CU = "cu.tz.cloudcpp.com"
@@ -32,15 +31,18 @@ import json
 import errno
 import subprocess
 import threading
+
 if sys.version_info.major == 3:
     from queue import Queue
 elif sys.version_info.major == 2:
     from Queue import Queue
 
+
 def get_uptime():
     with open('/proc/uptime', 'r') as f:
         uptime = f.readline().split('.', 2)
         return int(uptime[0])
+
 
 def get_memory():
     re_parser = re.compile(r'^(?P<key>\S*):\s*(?P<value>\d*)\s*kB')
@@ -52,58 +54,69 @@ def get_memory():
         key, value = match.groups(['key', 'value'])
         result[key] = int(value)
     MemTotal = float(result['MemTotal'])
-    MemUsed = MemTotal-float(result['MemFree'])-float(result['Buffers'])-float(result['Cached'])-float(result['SReclaimable'])
+    MemUsed = MemTotal - float(result['MemFree']) - float(result['Buffers']) - float(result['Cached']) - float(
+        result['SReclaimable'])
     SwapTotal = float(result['SwapTotal'])
     SwapFree = float(result['SwapFree'])
     return int(MemTotal), int(MemUsed), int(SwapTotal), int(SwapFree)
 
+
 def get_hdd():
-    p = subprocess.check_output(['df', '-Tlm', '--total', '-t', 'ext4', '-t', 'ext3', '-t', 'ext2', '-t', 'reiserfs', '-t', 'jfs', '-t', 'ntfs', '-t', 'fat32', '-t', 'btrfs', '-t', 'fuseblk', '-t', 'zfs', '-t', 'simfs', '-t', 'xfs']).decode("Utf-8")
+    p = subprocess.check_output(
+        ['df', '-Tlm', '--total', '-t', 'ext4', '-t', 'ext3', '-t', 'ext2', '-t', 'reiserfs', '-t', 'jfs', '-t', 'ntfs',
+         '-t', 'fat32', '-t', 'btrfs', '-t', 'fuseblk', '-t', 'zfs', '-t', 'simfs', '-t', 'xfs']).decode("Utf-8")
     total = p.splitlines()[-1]
     used = total.split()[3]
     size = total.split()[2]
     return int(size), int(used)
 
+
 def get_time():
     with open("/proc/stat", "r") as f:
         time_list = f.readline().split(' ')[2:6]
-        for i in range(len(time_list))  :
+        for i in range(len(time_list)):
             time_list[i] = int(time_list[i])
         return time_list
+
 
 def delta_time():
     x = get_time()
     time.sleep(INTERVAL)
     y = get_time()
     for i in range(len(x)):
-        y[i]-=x[i]
+        y[i] -= x[i]
     return y
+
 
 def get_cpu():
     t = delta_time()
     st = sum(t)
     if st == 0:
         st = 1
-    result = 100-(t[len(t)-1]*100.00/st)
+    result = 100 - (t[len(t) - 1] * 100.00 / st)
     return round(result, 1)
+
 
 def liuliang():
     NET_IN = 0
     NET_OUT = 0
     with open('/proc/net/dev') as f:
         for line in f.readlines():
-            netinfo = re.findall('([^\s]+):[\s]{0,}(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)', line)
+            netinfo = re.findall(
+                '([^\s]+):[\s]{0,}(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)',
+                line)
             if netinfo:
                 if netinfo[0][0] == 'lo' or 'tun' in netinfo[0][0] \
                         or 'docker' in netinfo[0][0] or 'veth' in netinfo[0][0] \
                         or 'br-' in netinfo[0][0] or 'vmbr' in netinfo[0][0] \
                         or 'vnet' in netinfo[0][0] or 'kube' in netinfo[0][0] \
-                        or netinfo[0][1]=='0' or netinfo[0][9]=='0':
+                        or netinfo[0][1] == '0' or netinfo[0][9] == '0':
                     continue
                 else:
                     NET_IN += int(netinfo[0][1])
                     NET_OUT += int(netinfo[0][9])
     return NET_IN, NET_OUT
+
 
 def tupd():
     '''
@@ -111,25 +124,27 @@ def tupd():
     :return:
     '''
     s = subprocess.check_output("ss -t|wc -l", shell=True)
-    t = int(s[:-1])-1
+    t = int(s[:-1]) - 1
     s = subprocess.check_output("ss -u|wc -l", shell=True)
-    u = int(s[:-1])-1
+    u = int(s[:-1]) - 1
     s = subprocess.check_output("ps -ef|wc -l", shell=True)
-    p = int(s[:-1])-2
+    p = int(s[:-1]) - 2
     s = subprocess.check_output("ps -eLf|wc -l", shell=True)
-    d = int(s[:-1])-2
-    return t,u,p,d
+    d = int(s[:-1]) - 2
+    return t, u, p, d
+
 
 def get_network(ip_version):
-    if(ip_version == 4):
-        HOST = "ipv4.google.com"
-    elif(ip_version == 6):
-        HOST = "ipv6.google.com"
+    if ip_version == 4:
+        HOST = "v4.ident.me"
+    elif ip_version == 6:
+        HOST = "v6.ident.me"
     try:
         socket.create_connection((HOST, 80), 2).close()
         return True
     except:
         return False
+
 
 lostRate = {
     '10010': 0.0,
@@ -154,6 +169,7 @@ diskIO = {
     'write': 0
 }
 monitorServer = {}
+
 
 def _ping_thread(host, mark, port):
     lostPacket = 0
@@ -193,6 +209,7 @@ def _ping_thread(host, mark, port):
 
         time.sleep(INTERVAL)
 
+
 def _net_speed():
     while True:
         with open("/proc/net/dev", "r") as f:
@@ -217,6 +234,7 @@ def _net_speed():
             netSpeed["avgrx"] = avgrx
             netSpeed["avgtx"] = avgtx
         time.sleep(INTERVAL)
+
 
 def _disk_io():
     '''
@@ -278,6 +296,7 @@ def _disk_io():
                 snapshot_write += (snapshot_second[k]["write"] - snapshot_first[k]["write"])
         diskIO["read"] = snapshot_read
         diskIO["write"] = snapshot_write
+
 
 def get_realtime_data():
     '''
@@ -341,7 +360,9 @@ def _monitor_thread(name, host, interval, type):
                 k = socket.create_connection((IP, 80), timeout=6)
                 monitorServer[name]["connect_time"] = int((timeit.default_timer() - m) * 1000)
                 m = timeit.default_timer()
-                k.sendall("GET / HTTP/1.2\r\nHost:{}\r\nUser-Agent:ServerStatus/cppla\r\nConnection:close\r\n\r\n".format(address).encode('utf-8'))
+                k.sendall(
+                    "GET / HTTP/1.2\r\nHost:{}\r\nUser-Agent:ServerStatus/cppla\r\nConnection:close\r\n\r\n".format(
+                        address).encode('utf-8'))
                 response = b""
                 while True:
                     data = k.recv(4096)
@@ -367,7 +388,9 @@ def _monitor_thread(name, host, interval, type):
                 monitorServer[name]["connect_time"] = int((timeit.default_timer() - m) * 1000)
                 m = timeit.default_timer()
                 kk = context.wrap_socket(k, server_hostname=address)
-                kk.sendall("GET / HTTP/1.2\r\nHost:{}\r\nUser-Agent:ServerStatus/cppla\r\nConnection:close\r\n\r\n".format(address).encode('utf-8'))
+                kk.sendall(
+                    "GET / HTTP/1.2\r\nHost:{}\r\nUser-Agent:ServerStatus/cppla\r\nConnection:close\r\n\r\n".format(
+                        address).encode('utf-8'))
                 response = b""
                 while True:
                     data = kk.recv(4096)
@@ -403,6 +426,7 @@ def _monitor_thread(name, host, interval, type):
             monitorServer[name]["online_rate"] = 1 - float(lostPacket) / packet_queue.qsize()
         time.sleep(interval)
 
+
 def byte_str(object):
     '''
     bytes to str, str to bytes
@@ -415,6 +439,7 @@ def byte_str(object):
         return bytes.decode(object)
     else:
         print(type(object))
+
 
 if __name__ == '__main__':
     for argc in sys.argv:
@@ -452,7 +477,7 @@ if __name__ == '__main__':
                 monitorServer.clear()
                 for i in data.split('\n'):
                     if "monitor" in i and "type" in i and "{" in i and "}" in i:
-                        jdata = json.loads(i[i.find("{"):i.find("}")+1])
+                        jdata = json.loads(i[i.find("{"):i.find("}") + 1])
                         monitorServer[jdata.get("name")] = {
                             "type": jdata.get("type"),
                             "dns_time": 0,
@@ -494,7 +519,7 @@ if __name__ == '__main__':
                     array['online' + str(check_ip)] = get_network(check_ip)
                     timer = 10
                 else:
-                    timer -= 1*INTERVAL
+                    timer -= 1 * INTERVAL
 
                 array['uptime'] = Uptime
                 array['load_1'] = Load_1
@@ -520,7 +545,9 @@ if __name__ == '__main__':
                 array['tcp'], array['udp'], array['process'], array['thread'] = tupd()
                 array['io_read'] = diskIO.get("read")
                 array['io_write'] = diskIO.get("write")
-                array['custom'] = "<br>".join(f"{k}\\t解析: {v['dns_time']}\\t连接: {v['connect_time']}\\t下载: {v['download_time']}\\t在线率: <code>{v['online_rate']*100:.1f}%</code>" for k, v in monitorServer.items())
+                array['custom'] = "<br>".join(
+                    f"{k}\\t解析: {v['dns_time']}\\t连接: {v['connect_time']}\\t下载: {v['download_time']}\\t在线率: <code>{v['online_rate'] * 100:.1f}%</code>"
+                    for k, v in monitorServer.items())
                 s.send(byte_str("update " + json.dumps(array) + "\n"))
         except KeyboardInterrupt:
             raise
